@@ -1,5 +1,5 @@
 # WTS
-The system will make 20% annual return
+This system development is still ongoing. This git repo is just for presentation purpose
 
 ## 1. Roadmap
 
