@@ -1,0 +1,4 @@
+pycodestyle
+sqlalchemy
+tushare
+bs4

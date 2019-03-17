@@ -1,0 +1,12 @@
+#!/bin/bash
+#
+# Enforce Python Style Checking (PEP8).
+# Note: you must have pycodestyle installed.
+python_files=`git diff --cached --name-only | grep -E '^.+\.(py)$'`
+if [ ! -z "$python_files" ]; then
+	pycodestyle $python_files
+	if [ $? -gt 0 ]; then
+		printf '\033[31m pycodestyle check errors \033[0m\n'
+		exit 1
+	fi
+fi
