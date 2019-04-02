@@ -1,6 +1,11 @@
 setup.py
 test/test_datahandler.py
+test/test_executionhandler.py
+test/test_holding.py
 test/test_main.py
+test/test_portfoliohandler.py
+test/test_position.py
+test/test_strategy.py
 wts/datahandler.py
 wts/event.py
 wts/executionhandler.py
@@ -12,6 +17,7 @@ wts/strategy.py
 wts/test.py
 wts/test2.py
 wts/test3.py
+wts/test4.py
 wts.egg-info/PKG-INFO
 wts.egg-info/SOURCES.txt
 wts.egg-info/dependency_links.txt

@@ -36,7 +36,7 @@ def backtest_sim(start_date, end_date, engine):
             strategy.update_signal(event)
 
         elif event.type == "SignalEvent":
-            portfoliohandler.update_order(event)
+            portfoliohandler.update_order(event, method="AD")
 
         elif event.type == "OrderEvent":
             executionHandler.execute_order(event)

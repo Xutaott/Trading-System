@@ -7,6 +7,7 @@ setup(
     author='Xutao Chen',
     author_email='xc1139@nyu.edu',
     packages=['wts'],
-    install_requires=['pycodestyle', 'sqlalchemy', 'tushare', 'bs4'],
+    install_requires=['pycodestyle', 'sqlalchemy', 'tushare', 'bs4', 'pandas',
+                      'numpy'],
     # external packages as dependencies
 )

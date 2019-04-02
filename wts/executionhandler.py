@@ -1,5 +1,5 @@
 from abc import abstractmethod
-import pandas as pd
+import numpy as np
 from wts.event import FillEvent, NotFillEvent
 
 
@@ -20,28 +20,16 @@ class ExecutionHandler(object):
 
 class SimExecutionHandler(ExecutionHandler):
 
-    def __init__(self, queue, engine):
+    def __init__(self, queue, datahandler):
         '''
-        Handle the order event and generate fill event
+        Handle the order event and generate fill/notfill event
         :param queue: Queue
-        :param engine: Engine, bind to the database
+        :param datahandler: DailyDataHandler
         '''
         self.events_queue = queue
-        self.engine = engine
-        self.df = self._load_sql()
-
-    def _load_sql(self):
-        '''
-        Load data from database
-        :return: Dataframe
-        '''
-        sql_statement = "SELECT * FROM Stocks"
-        result = self.engine.execute(sql_statement)
-        keys = result.keys()
-        df = [data for data in result]
-        df = pd.DataFrame(df, columns=keys)
-        df["date"] = pd.to_datetime(df["date"])
-        return df
+        self.datahandler = datahandler
+        self.close = self.datahandler.get_data("close")
+        self.symbol, self.date, self.valid = self.datahandler.get_available()
 
     def execute_order(self, order_event):
         '''
@@ -51,22 +39,21 @@ class SimExecutionHandler(ExecutionHandler):
         TODO: Tailor the executed price and fee
         :param order_event: OrderEvent
         '''
-        datetime = order_event.datetime
+        didx = order_event.didx
         symbol = order_event.symbol
         order_type = order_event.order_type
         quantity = order_event.quantity
         side = order_event.side
+        arg = np.where(self.symbol == symbol)
+        current_close = self.close[didx, arg[0]][0]
 
-        current_df = self.df[((self.df["date"] == datetime) &
-                              (self.df["ts_code"] == symbol))]
-
-        if len(current_df) == 0:
-            notfill_event = NotFillEvent(datetime)
+        if np.isnan(current_close):  # The stock is not traded today
+            notfill_event = NotFillEvent(didx)
             self.events_queue.put(notfill_event)
         else:
-            executed_price = current_df["close_p"].values[0]
+            executed_price = current_close
             fee = executed_price * quantity * 0.001
-            fill_event = FillEvent(datetime, symbol, quantity,
+            fill_event = FillEvent(didx, symbol, quantity,
                                    executed_price, side, fee)
             self.events_queue.put(fill_event)
 

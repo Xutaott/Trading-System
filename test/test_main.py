@@ -7,16 +7,23 @@ import pandas as pd
 
 from wts.datahandler import DailyDataHandler
 from wts.event import NextLoopEvent
-from wts.strategy import DailyStrategy
+from wts.strategy import AlphaBase
 from wts.portfoliohandler import SimPortfolioHandler
 from wts.executionhandler import SimExecutionHandler
 
-start_datetime = "2010-01-01"
-end_datetime = "2011-01-01"
-engine = create_engine("sqlite:///../database/sample.db")
+start_datetime = "20100101"
+end_datetime = "20190101"
+# Sample database
+# engine_stock = create_engine("sqlite:///../database/sample.db")
+# Population database
+engine_stock = create_engine("sqlite://///Users/chenxutao/Documents/"
+                             "TradingSystem/chinesestock1.db")
 
 
-class TestCaseDemo(unittest.TestCase):
+# engine = create_engine("sqlite:///../database/chinesestock1.db")
+
+
+class TestMain(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -34,32 +41,23 @@ class TestCaseDemo(unittest.TestCase):
 
     def testCase1(self):
         events_queue = queue.Queue()
-        datahandler = DailyDataHandler(start_datetime, end_datetime,
-                                       events_queue,
-                                       engine)
-        strategy = DailyStrategy(events_queue, lookback=1, frequency=1)
-        start_date = pd.Timestamp(start_datetime)
-        first_position_date = datahandler.find_trade_date(start_date,
-                                                          -strategy.lookback)
-
-        portfoliohandler = SimPortfolioHandler(events_queue,
-                                               first_position_date,
+        datahandler = DailyDataHandler(engine_stock, start_datetime,
+                                       end_datetime)
+        strategy = AlphaBase(datahandler, events_queue)
+        portfoliohandler = SimPortfolioHandler(events_queue, freq=20,
                                                initial_cap=1000000.0)
-        executionHandler = SimExecutionHandler(events_queue, engine)
-
-        nextloop_event = NextLoopEvent(first_position_date)
+        executionHandler = SimExecutionHandler(events_queue, datahandler)
+        # Arbitrage didx to start
+        nextloop_event = NextLoopEvent(didx=4)
         events_queue.put(nextloop_event)
 
         while not events_queue.empty():
             event = events_queue.get()
             if event.type == "NextLoopEvent":
-                datahandler.stream_next(event)
-
-            elif event.type == "DataEvent":
                 strategy.update_signal(event)
 
             elif event.type == "SignalEvent":
-                portfoliohandler.update_order(event)
+                portfoliohandler.update_order(event, method="AD")
 
             elif event.type == "OrderEvent":
                 executionHandler.execute_order(event)

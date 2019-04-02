@@ -2,3 +2,5 @@ pycodestyle
 sqlalchemy
 tushare
 bs4
+pandas
+numpy

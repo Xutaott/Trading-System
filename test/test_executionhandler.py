@@ -2,15 +2,16 @@ import unittest
 import queue
 import pandas as pd
 from sqlalchemy import create_engine
-
+from wts.datahandler import DailyDataHandler
 from wts.executionhandler import SimExecutionHandler
 from wts.event import OrderEvent, NotFillEvent, FillEvent
 
-engine = create_engine("sqlite:///../database/sample.db")
+engine = create_engine("sqlite:///../database/sample_stock.db")
 events_queue = queue.Queue()
+datahandler = DailyDataHandler(engine, "20100627", "20100703")
 
 
-class TestExecitionHandler(unittest.TestCase):
+class TestExecutionHandler(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -22,40 +23,42 @@ class TestExecitionHandler(unittest.TestCase):
 
     def setUp(self):
         self.assertTrue(True)
-        self.execution_handler = SimExecutionHandler(events_queue, engine)
+        self.execution_handler = SimExecutionHandler(events_queue, datahandler)
 
     def tearDown(self):
         self.assertTrue(True)
 
     # Test not fill scenario
     def testCase1(self):
-        date = pd.to_datetime("2010-07-01")
+        didx = 2  # "20100630" in this case
         symbol = "000001.SZ"
         quantity = 200
         side = "Sell"
         order_type = "Market"
-        order_event = OrderEvent(date, symbol, quantity, side, order_type)
+        price_range = (1, 1)  # Only for test
+        order_event = OrderEvent(didx, symbol, quantity, side,
+                                 price_range, order_type=order_type)
         self.execution_handler.execute_order(order_event)
-        notfill_event = NotFillEvent(date)
+        notfill_event = NotFillEvent(didx)
         event = events_queue.get()
-        self.assertEqual(event.datetime, notfill_event.datetime)
+        self.assertEqual(event.didx, notfill_event.didx)
         self.assertEqual(event.type, notfill_event.type)
 
     # Test fill scenario
     def testCase2(self):
-        date = pd.to_datetime("2010-07-01")
-        symbol = "000002.SZ"
+        didx = 1  # "20100629"
+        symbol = "000001.SZ"
         quantity = 200
         side = "Sell"
         order_type = "Market"
-        order_event = OrderEvent(date, symbol, quantity, side, order_type)
+        order_event = OrderEvent(didx, symbol, quantity, side, order_type)
         self.execution_handler.execute_order(order_event)
 
-        close_p = 6.68
+        close_p = 17.51
         fee = close_p * quantity * 0.001
-        fill_event = FillEvent(date, symbol, quantity, close_p, side, fee)
+        fill_event = FillEvent(didx, symbol, quantity, close_p, side, fee)
         event = events_queue.get()
-        self.assertEqual(event.datetime, fill_event.datetime)
+        self.assertEqual(event.didx, fill_event.didx)
         self.assertEqual(event.type, fill_event.type)
         self.assertEqual(event.symbol, fill_event.symbol)
         self.assertEqual(event.quantity, fill_event.quantity)

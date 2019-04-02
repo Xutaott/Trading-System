@@ -1,5 +1,5 @@
 # WTS
-This system development is still ongoing. This git repo is just for presentation purpose
+The system will make 20% annual return
 
 ## 1. Roadmap
 
@@ -11,11 +11,11 @@ New York time 10:00 on Tuesday, Wednesday, Thursday, Saturday and Sunday.
 
 ### 1.2. Tasks and Schedule
 
-- [ ] 
-
 ## 2. Deployment Environment
 
 - macOS
+
+    > A setup.py is needed in the future.
 
     ```bash
     brew install python3
@@ -32,4 +32,4 @@ ln -s ../../pre-commit .git/hooks/pre-commit
 
 ## 4. System Design
 
-- [Design Diagram](https://www.processon.com/view/link/5c83447ce4b0ab74ecd13207)
+- [Design Diagram](https://www.processon.com/view/link/5ca0e3d3e4b08743435e599c)

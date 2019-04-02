@@ -1,12 +1,14 @@
 import unittest
 import queue
-import pandas as pd
-from wts.strategy import DailyStrategy
-from wts.event import DataEvent
+from sqlalchemy import create_engine
+from wts.strategy import AlphaBase
+from wts.datahandler import DailyDataHandler
+from wts.event import NextLoopEvent
 
-df = pd.read_csv("../test/test_sample.csv")
-df["date"] = pd.to_datetime(df["date"])
+
+engine = create_engine("sqlite:///../database/sample_stock.db")
 events_queue = queue.Queue()
+datahandler = DailyDataHandler(engine, "20100627", "20100703")
 
 
 class TestStrategy(unittest.TestCase):
@@ -21,31 +23,27 @@ class TestStrategy(unittest.TestCase):
 
     def setUp(self):
         self.assertTrue(True)
-        self.strategy = DailyStrategy(events_queue, lookback=5)
+        self.strategy = AlphaBase(datahandler, events_queue, 3)
 
     def tearDown(self):
         self.assertTrue(True)
 
+    # Test alpha_generator
     def testCase1(self):
-        lookback_start = pd.to_datetime("2010-01-04")
-        lookback_end = pd.to_datetime("2010-01-08")
-        next_order_date = pd.to_datetime("2010-01-11")
-        batch = df[((df["date"] >= lookback_start) &
-                    (df["date"] <= lookback_end))]
-        data_event = DataEvent(next_order_date, batch)
-        self.strategy.update_signal(data_event)
-        signal_event = events_queue.get()
-        self.assertEqual(signal_event.datetime, next_order_date)
-        # print(signal_event.signal)
+        alpha = self.strategy.alpha_generator(didx=3)
+        print(alpha)
 
+    # Test signal_generator
     def testCase2(self):
-        lookback_start = pd.to_datetime("2010-06-29")
-        lookback_end = pd.to_datetime("2010-07-05")
-        next_order_date = pd.to_datetime("2010-07-06")
-        batch = df[((df["date"] >= lookback_start) &
-                    (df["date"] <= lookback_end))]
-        data_event = DataEvent(next_order_date, batch)
-        self.strategy.update_signal(data_event)
-        signal_event = events_queue.get()
-        self.assertEqual(signal_event.datetime, next_order_date)
-        # print(signal_event.signal)
+        didx = 3
+        alpha = self.strategy.alpha_generator(didx)
+        signal = self.strategy.signal_generator(alpha, didx, N=2)
+        print(signal)
+
+    # Test update_signal
+    def testCase3(self):
+        nextloop_event = NextLoopEvent(3)
+        self.strategy.update_signal(nextloop_event)
+        event = self.strategy.events_queue.get()
+        print(event.signal)
+        print(event.didx)
