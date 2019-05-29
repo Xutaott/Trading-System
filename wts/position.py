@@ -29,10 +29,11 @@ class Position():
         '''
 
         :param event: FillEvent or NotFillEvent
-        :return: Datetime dt, Float delta_amount, Float fee,
-                 for update of holdings
+        :return: Float delta_stock, Float delta_cash, Float fee,
         '''
-        delta_amount = 0.0
+        delta_stock = 0.0
+        delta_cash = 0.0
+        # delta_amount = 0.0
         fee = 0.0
         if event.type == "FillEvent":
             fill_event = event
@@ -50,6 +51,7 @@ class Position():
                                     fill_event.price * fill_event.quantity)
                 current["holding_price"] = current["cost"] / float(
                     current["quantity"])
+                delta_cash = - fill_event.quantity * fill_event.price
 
             else:
                 current["quantity"] -= fill_event.quantity
@@ -64,10 +66,14 @@ class Position():
                 else:
                     current["cost"] = 0
                     current["holding_price"] = 0
-            delta_amount = current["amount"] - initial_amount
+                delta_cash = fill_event.quantity * fill_event.price
+
+                if current["quantity"] == 0:
+                    self.dictionary.pop(symbol)
+            delta_stock = current["amount"] - initial_amount
             fee = fill_event.fee
 
-        return delta_amount, fee
+        return delta_cash, delta_stock, fee
 
     def to_dataframe(self):
         '''

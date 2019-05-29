@@ -33,3 +33,35 @@ ln -s ../../pre-commit .git/hooks/pre-commit
 ## 4. System Design
 
 - [Design Diagram](https://www.processon.com/view/link/5ca0e3d3e4b08743435e599c)
+
+## 5. Database
+
+#### PostgreSQL
+
+##### 1. Install
+
+> Do it only once.
+
+```
+brew install postgresql
+pip3 install psycopg2
+
+sudo install -o $USER -d /db_data
+sudo install -o $USER -d /db_data/postgresql
+pg_ctl init -D /db_data/postgresql
+```
+
+##### 2. Start PostgreSQL
+
+> Do it when you could not connect to the database.
+
+```
+pg_ctl -D /db_data/postgresql start
+```
+
+##### 3. Stop PostgreSQL
+
+```
+pg_ctl -D /db_data/postgresql stop
+```
+

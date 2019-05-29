@@ -3,7 +3,9 @@ import queue
 from wts.datahandler import DailyDataHandler
 from sqlalchemy import create_engine
 
-engine = create_engine("sqlite:///../database/sample_stock.db")
+# engine = create_engine("sqlite:///../database/sample_stock.db")
+path_stock_inter = "postgresql://chenxutao:@localhost/stock_inter"
+engine = create_engine(path_stock_inter)
 events_queue = queue.Queue()
 
 
@@ -33,7 +35,7 @@ class TestDataHandler(unittest.TestCase):
 
     # Test get_data function
     def testCase2(self):
-        close = self.data_handler.get_data("close")
+        close = self.data_handler.get_data("close_p")
         buy_lg_vol = self.data_handler.get_data("buy_lg_vol")
         print(close)
         print(buy_lg_vol)

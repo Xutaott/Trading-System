@@ -7,10 +7,11 @@ class Holding():
         self.dictionary = dict(cash=cash, stock=stock,
                                margin=margin, total=total)
 
-    def update_holding(self, detal_amount, fee):
-        self.dictionary["cash"] -= (detal_amount + fee)
-        self.dictionary["stock"] += detal_amount
-        self.dictionary['total'] -= fee
+    def update_holding(self, delta_cash, delta_stock, fee):
+        self.dictionary["cash"] += (delta_cash - fee)
+        self.dictionary["stock"] += delta_stock
+        self.dictionary['total'] = self.dictionary["cash"] + self.dictionary[
+            "stock"]
 
     def to_dataframe(self):
         '''

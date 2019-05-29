@@ -1,7 +1,5 @@
 from abc import ABCMeta, abstractmethod
-import pandas as pd
 import numpy as np
-import time
 
 
 class DataHandler(object):
@@ -26,313 +24,372 @@ class DailyDataHandler(DataHandler):
     Specific for stock selection strategy
     '''
 
-    def __init__(self, engine_stock, start_dt, end_dt):
+    def __init__(self, engine_inter, start_dt, end_dt):
         '''
 
-        :param engine_stock: sqlalchemy.engine
+        :param engine_inter: sqlalchemy.engine
         :param start_dt: String, '20100101'
         :param end_dt: String
-        # TODO: engine for index
         '''
-        self.engine_stock = engine_stock
+        self.engine_inter = engine_inter
         self.start_dt = start_dt
         self.end_dt = end_dt
 
-    # Get array of business date, and matrix of tradable stocks
+    # Get array of symbol and trading date,
+    #  whose order is align with corresponding valid (tradable) matrix
     def get_available(self):
         '''
 
-        :return: np.array: symbol
-                 np.array: business date
-                 np.array: matrix of tradable stocks
+        :return: 1*M array, 1*T array, T*M matrix
         '''
-        # t1 = time.time()
-        sql = "SELECT date, ts_code, close_p FROM Stocks WHERE date " \
-              "BETWEEN %s AND %s " \
-              "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-        result = self.engine_stock.execute(sql)
+        # Get list of
+        sql_statement = "SELECT symbol FROM \"ts_code\""
+        result = self.engine_inter.execute(sql_statement)
         data = result.fetchall()
-        keys = result.keys()
-        # t2 = time.time()
-        # print("FROM SQL: %s seconds"%(t2-t1))
+        symbol = np.array(data).reshape(-1)
 
-        df = pd.DataFrame(data, columns=keys)
-        df.set_index('date', inplace=True)
-        # t3 = time.time()
-        # print("SQL Result to dataframe: %s seconds"%(t3-t2))
+        # Get list of trade date, corresponding to order of matrix
+        sql_statement = "SELECT date FROM \"valid\" ORDER BY date"
+        result = self.engine_inter.execute(sql_statement)
+        data = result.fetchall()
+        date = np.array(data).reshape(-1)
 
-        df_group = df.groupby('ts_code')
-        # t4 = time.time()
-        # print("Grouping: %s seconds" % (t4 - t3))
-
-        df_all = []
-        symbol = []
-        for ts_code, df1 in df_group:
-            symbol.append(ts_code)
-            df_all.append(df1)
-        df_all = pd.concat(df_all, join='outer', axis=1)
-        # t5 = time.time()
-        # print("Grouping result to new dataframe: %s seconds" % (t5 - t4))
-
-        df_all.drop('ts_code', axis=1, inplace=True)
-        date = df_all.index
-        symbol = np.array(symbol)
-        matrix_all = df_all.as_matrix()
-        valid = np.invert(np.isnan(matrix_all))
-        # t6 = time.time()
-        # print("Dataframe to matrix: %s seconds" % (t6 - t5))
+        sql_statement = "SELECT data FROM \"valid\" ORDER BY date"
+        result = self.engine_inter.execute(sql_statement)
+        data = result.fetchall()
+        valid = np.array(data)
+        rows = valid.shape[0]
+        valid = valid.reshape(rows, -1)
 
         return symbol, date, valid
 
     # Get data in matrix form
     def get_data(self, keyword):
-        # Daily Bar Data
-        if keyword == 'close':
-            sql = "SELECT date, ts_code, close_p FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'open':
-            sql = "SELECT date, ts_code, open_p FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'high':
-            sql = "SELECT date, ts_code, high_p FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'low':
-            sql = "SELECT date, ts_code, low_p FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'volume':
-            sql = "SELECT date, ts_code, volume FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'amount':
-            sql = "SELECT date, ts_code, amount FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'pre_close':
-            sql = "SELECT date, ts_code, pre_close FROM Stocks WHERE date " \
-                  "BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
+        '''
 
-        # Daily Moneyflow data
-        if keyword == 'buy_sm_vol':
-            sql = "SELECT date, ts_code, buy_sm_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_sm_amount':
-            sql = "SELECT date, ts_code, buy_sm_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_sm_vol':
-            sql = "SELECT date, ts_code, sell_sm_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_sm_amount':
-            sql = "SELECT date, ts_code, sell_sm_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_md_vol':
-            sql = "SELECT date, ts_code, buy_md_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_md_amount':
-            sql = "SELECT date, ts_code, buy_md_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_md_vol':
-            sql = "SELECT date, ts_code, sell_md_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_md_amount':
-            sql = "SELECT date, ts_code, sell_md_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_lg_vol':
-            sql = "SELECT date, ts_code, buy_lg_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_lg_amount':
-            sql = "SELECT date, ts_code, buy_lg_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_lg_vol':
-            sql = "SELECT date, ts_code, sell_lg_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_lg_amount':
-            sql = "SELECT date, ts_code, sell_lg_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_elg_vol':
-            sql = "SELECT date, ts_code, buy_elg_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'buy_elg_amount':
-            sql = "SELECT date, ts_code, buy_elg_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_elg_vol':
-            sql = "SELECT date, ts_code, sell_elg_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'sell_elg_amount':
-            sql = "SELECT date, ts_code, sell_elg_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'net_mf_vol':
-            sql = "SELECT date, ts_code, net_mf_vol FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'net_mf_amount':
-            sql = "SELECT date, ts_code, net_mf_amount FROM Moneyflow " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
+        :param keyword: e.x. 'close_p'
+        :return: T*M matrix
+        '''
+        sql_statement = "SELECT data FROM \"%s\" ORDER BY date" % (keyword)
+        result = self.engine_inter.execute(sql_statement)
+        data = result.fetchall()
+        matrix = np.array(data)
+        rows = matrix.shape[0]
+        matrix = matrix.reshape(rows, -1)
 
-        # Daily Technical data
-        if keyword == 'turnover_rate':
-            sql = "SELECT date, ts_code, turnover_rate FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'turnover_rate_f':
-            sql = "SELECT date, ts_code, turnover_rate_f FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'volume_ratio':
-            sql = "SELECT date, ts_code, volume_ratio FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'pe_lyr':
-            sql = "SELECT date, ts_code, pe_lyr FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'pe_ttm':
-            sql = "SELECT date, ts_code, pe_ttm FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'pb':
-            sql = "SELECT date, ts_code, pb FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'ps_lyr':
-            sql = "SELECT date, ts_code, ps_lyr FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'ps_ttm':
-            sql = "SELECT date, ts_code, ps_ttm FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'total_share':
-            sql = "SELECT date, ts_code, total_share FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'float_share':
-            sql = "SELECT date, ts_code, float_share FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'free_share':
-            sql = "SELECT date, ts_code, free_share FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'total_mv':
-            sql = "SELECT date, ts_code, total_mv FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
-        if keyword == 'float_mv':
-            sql = "SELECT date, ts_code, float_mv FROM Technical " \
-                  "WHERE date BETWEEN %s AND %s " \
-                  "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
-            result = self.engine_stock.execute(sql)
-            return self._to_np(result)
+        return matrix
 
-    def _to_np(self, sql_result):
-        data = sql_result.fetchall()
-        keys = sql_result.keys()
-        df = pd.DataFrame(data, columns=keys)
-        df.set_index('date', inplace=True)
-        df_group = df.groupby('ts_code')
-        output = []
-        for ts_code, df1 in df_group:
-            output.append(df1)
-        output = pd.concat(output, join='outer', axis=1)
-        output.drop('ts_code', axis=1, inplace=True)
-        output = output.as_matrix()
-        return output
+    # Get index data
+    def get_index(self, keyword, ts_code):
+        '''
+
+        :param keyword: e.x. 'close_p'
+        :param ts_code: symbol of index, e.x. '000001.SH'
+        :return: 1*T array
+        '''
+        sql_statement = "SELECT %s FROM \"Index\" WHERE ts_code=\'%s\' " \
+                        "ORDER BY date" % (keyword, ts_code)
+        result = self.engine_inter.execute(sql_statement)
+        data = result.fetchall()
+        data = np.array(data).reshape(-1)
+
+        return data
+
+    # # Get array of business date, and matrix of tradable stocks
+    # def get_available(self):
+    #     '''
+    #
+    #     :return: np.array: symbol
+    #              np.array: business date
+    #              np.array: matrix of tradable stocks
+    #     '''
+    #     t1 = time.time()
+    #     sql = "SELECT date, ts_code, close_p FROM \"Stocks\" WHERE date " \
+    #           "BETWEEN \'%s\' AND \'%s\' " \
+    #           "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #     result = self.engine_stock.execute(sql)
+    #     data = result.fetchall()
+    #     keys = result.keys()
+    #     t2 = time.time()
+    #     print("FROM SQL: %s seconds" % (t2 - t1))
+    #
+    #     df = pd.DataFrame(data, columns=keys)
+    #     df.set_index('date', inplace=True)
+    #     t3 = time.time()
+    #     print("SQL Result to dataframe: %s seconds" % (t3 - t2))
+    #
+    #     df_group = df.groupby('ts_code')
+    #     t4 = time.time()
+    #     print("Grouping: %s seconds" % (t4 - t3))
+    #
+    #     df_all = []
+    #     symbol = []
+    #     for ts_code, df1 in df_group:
+    #         symbol.append(ts_code)
+    #         df_all.append(df1)
+    #     df_all = pd.concat(df_all, join='outer', axis=1)
+    #     t5 = time.time()
+    #     print("Grouping result to new dataframe: %s seconds" % (t5 - t4))
+    #
+    #     df_all.drop('ts_code', axis=1, inplace=True)
+    #     date = df_all.index
+    #     symbol = np.array(symbol)
+    #     matrix_all = df_all.as_matrix()
+    #     valid = np.invert(np.isnan(matrix_all))
+    #     t6 = time.time()
+    #     print("Dataframe to matrix: %s seconds" % (t6 - t5))
+    #
+    #     return symbol, date, valid
+
+    # # Get data in matrix form
+    # def get_data(self, keyword):
+    #     # Daily Bar Data
+    #     if keyword == 'close':
+    #         sql = "SELECT date,ts_code,close_p FROM \"Stocks\" WHERE date " \
+    #               "BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'open':
+    #         sql = "SELECT date, ts_code,open_p FROM \"Stocks\" WHERE date " \
+    #               "BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'high':
+    #         sql = "SELECT date, ts_code,high_p FROM \"Stocks\" WHERE date " \
+    #               "BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'low':
+    #         sql = "SELECT date, ts_code, low_p FROM \"Stocks\" WHERE date " \
+    #               "BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'volume':
+    #         sql = "SELECT date, ts_code,volume FROM \"Stocks\" WHERE date " \
+    #               "BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'amount':
+    #         sql = "SELECT date, ts_code,amount FROM \"Stocks\" WHERE date " \
+    #               "BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'pre_close':
+    #         sql = "SELECT date, ts_code, pre_close FROM \"Stocks\" WHERE " \
+    #               "date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #
+    #     # Daily Moneyflow data
+    #     if keyword == 'buy_sm_vol':
+    #         sql = "SELECT date, ts_code, buy_sm_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_sm_amount':
+    #         sql = "SELECT date, ts_code, buy_sm_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_sm_vol':
+    #         sql = "SELECT date, ts_code, sell_sm_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_sm_amount':
+    #         sql = "SELECT date,ts_code, sell_sm_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_md_vol':
+    #         sql = "SELECT date, ts_code, buy_md_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_md_amount':
+    #         sql = "SELECT date, ts_code, buy_md_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_md_vol':
+    #         sql = "SELECT date, ts_code, sell_md_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_md_amount':
+    #         sql = "SELECT date,ts_code, sell_md_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_lg_vol':
+    #         sql = "SELECT date, ts_code, buy_lg_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_lg_amount':
+    #         sql = "SELECT date, ts_code, buy_lg_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_lg_vol':
+    #         sql = "SELECT date, ts_code, sell_lg_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_lg_amount':
+    #         sql = "SELECT date,ts_code, sell_lg_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_elg_vol':
+    #         sql = "SELECT date, ts_code, buy_elg_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'buy_elg_amount':
+    #         sql = "SELECT date,ts_code,buy_elg_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_elg_vol':
+    #         sql = "SELECT date, ts_code, sell_elg_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'sell_elg_amount':
+    #         sql = "SELECT date,ts_code,sell_elg_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'net_mf_vol':
+    #         sql = "SELECT date, ts_code, net_mf_vol FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'net_mf_amount':
+    #         sql = "SELECT date, ts_code, net_mf_amount FROM \"Moneyflow\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #
+    #     # Daily Technical data
+    #     if keyword == 'turnover_rate':
+    #         sql = "SELECT date, ts_code, turnover_rate FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'turnover_rate_f':
+    #         sql = "SELECT date,ts_code,turnover_rate_f FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'volume_ratio':
+    #         sql = "SELECT date, ts_code, volume_ratio FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'pe_lyr':
+    #         sql = "SELECT date, ts_code, pe_lyr FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'pe_ttm':
+    #         sql = "SELECT date, ts_code, pe_ttm FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'pb':
+    #         sql = "SELECT date, ts_code, pb FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'ps_lyr':
+    #         sql = "SELECT date, ts_code, ps_lyr FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'ps_ttm':
+    #         sql = "SELECT date, ts_code, ps_ttm FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'total_share':
+    #         sql = "SELECT date, ts_code, total_share FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'float_share':
+    #         sql = "SELECT date, ts_code, float_share FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'free_share':
+    #         sql = "SELECT date, ts_code, free_share FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'total_mv':
+    #         sql = "SELECT date, ts_code, total_mv FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #     if keyword == 'float_mv':
+    #         sql = "SELECT date, ts_code, float_mv FROM \"Technical\" " \
+    #               "WHERE date BETWEEN \'%s\' AND \'%s\' " \
+    #               "ORDER BY ts_code, date" % (self.start_dt, self.end_dt)
+    #         result = self.engine_stock.execute(sql)
+    #         return self._to_np(result)
+    #
+    # def _to_np(self, sql_result):
+    #     data = sql_result.fetchall()
+    #     keys = sql_result.keys()
+    #     df = pd.DataFrame(data, columns=keys)
+    #     df.set_index('date', inplace=True)
+    #     df_group = df.groupby('ts_code')
+    #     output = []
+    #     for ts_code, df1 in df_group:
+    #         output.append(df1)
+    #     output = pd.concat(output, join='outer', axis=1)
+    #     output.drop('ts_code', axis=1, inplace=True)
+    #     output = output.as_matrix()
+    #     return output
 
 #
 # class DailyDataHandler(DataHandler):

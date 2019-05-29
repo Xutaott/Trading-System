@@ -177,8 +177,8 @@ class SimPortfolioHandler(PortfolioHandler):
         # Update position
         didx = event.didx
         next_didx = didx + self.freq
-        delta_amount, fee = self.position.update_position(event)
-        self.holding.update_holding(delta_amount, fee)
+        delta_cash, delta_stock, fee = self.position.update_position(event)
+        self.holding.update_holding(delta_cash, delta_stock, fee)
 
         # When all orders in current period are filled, record position and
         # holding, and then generate next loop event

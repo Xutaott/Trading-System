@@ -16,11 +16,12 @@ end_datetime = "20190101"
 # Sample database
 # engine_stock = create_engine("sqlite:///../database/sample.db")
 # Population database
-engine_stock = create_engine("sqlite://///Users/chenxutao/Documents/"
-                             "TradingSystem/chinesestock1.db")
+# engine_stock = create_engine("sqlite://///Users/chenxutao/Documents/"
+#                             "TradingSystem/chinesestock1.db")
 
-
-# engine = create_engine("sqlite:///../database/chinesestock1.db")
+# Population postgresql
+path_stock_inter = "postgresql://chenxutao:@localhost/stock_inter"
+engine_stock = create_engine(path_stock_inter)
 
 
 class TestMain(unittest.TestCase):

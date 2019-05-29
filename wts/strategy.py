@@ -58,7 +58,7 @@ class AlphaBase(Strategy):
     Stock Selection
     '''
 
-    def __init__(self, datahandler, events_queue, lookback=5):
+    def __init__(self, datahandler, events_queue, lookback=1):
         '''
 
         :param datahandler: DataHandler_matrix
@@ -67,14 +67,18 @@ class AlphaBase(Strategy):
         '''
         self.datahandler = datahandler
         self.events_queue = events_queue
-        self.lookback = lookback
+        self.lookback = 10
         self.symbol, self.date, self.valid = self.datahandler.get_available()
-        self.close = self.datahandler.get_data("close")
+        self.close = self.datahandler.get_data("close_p")
         self.last_didx = self.close.shape[0] - 1
         print(self.last_didx)
 
         # For test purpose
-        self.open = self.datahandler.get_data("open")
+        # self.open = self.datahandler.get_data("open_p")
+        # self.high = self.datahandler.get_data("high_p")
+        # self.low = self.datahandler.get_data("low_p")
+        # self.vol = self.datahandler.get_data("volume")
+        self.buy_sm_vol = self.datahandler.get_data("buy_sm_vol")
 
     def update_signal(self, nextloop_event):
         didx = nextloop_event.didx
@@ -91,8 +95,8 @@ class AlphaBase(Strategy):
 
     def alpha_generator(self, didx):
         # To avoid future infor, the last available index should be didx - 1
-        # e.x. self.close[startdidx:didx], startdidx = didx - lookback
-        # e.x. self.close[didx-1]
+        # e.x. self.close[startdidx:didx, v], startdidx = didx - lookback
+        # e.x. self.close[didx-1, v]
         num_Insts = len(self.symbol)
         alpha = np.array([np.nan] * num_Insts)
         v = [True] * num_Insts
@@ -101,11 +105,19 @@ class AlphaBase(Strategy):
             v = np.logical_and(v, v1)
         startdidx = didx - self.lookback
         # Pay attention to "axis" parameter
-        alpha[v] = np.max(self.close[startdidx:didx, v] /
-                          self.open[startdidx:didx, v], axis=0)
+        # alpha[v] = np.max(self.close[startdidx:didx, v] /
+        #                  self.open[startdidx:didx, v], axis=0)
+        # volume = self.vol[startdidx:didx, v]
+        # alpha[v] =  volume[-1] / np.nanmean(volume, axis=0)
+        # close = self.close[didx-1, v]
+        # high = self.high[didx-1, v]
+        # low = self.low[didx-1, v]
+        buy_sm_vol = self.buy_sm_vol[startdidx:didx, v]
+        alpha[v] = np.nanmean(buy_sm_vol, axis=0) / np.nanstd(buy_sm_vol,
+                                                              axis=0)
         return alpha
 
-    def signal_generator(self, alpha, didx, N=2):
+    def signal_generator(self, alpha, didx, N=50):
         pre_close = self.close[didx - 1]
         # Return an array of indices that sort the array in descending order
         # np.nan in the last

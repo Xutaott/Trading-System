@@ -28,7 +28,7 @@ class SimExecutionHandler(ExecutionHandler):
         '''
         self.events_queue = queue
         self.datahandler = datahandler
-        self.close = self.datahandler.get_data("close")
+        self.close = self.datahandler.get_data("close_p")
         self.symbol, self.date, self.valid = self.datahandler.get_available()
 
     def execute_order(self, order_event):
