@@ -1,10 +1,12 @@
+# coding=utf-8
+
 import unittest
 import queue
 from wts.datahandler import DailyDataHandler
 from sqlalchemy import create_engine
 
 # engine = create_engine("sqlite:///../database/sample_stock.db")
-path_stock_inter = "postgresql://chenxutao:@localhost/stock_inter"
+path_stock_inter = "postgresql://chenxutao:@localhost/chinesestock_pg_inter"
 engine = create_engine(path_stock_inter)
 events_queue = queue.Queue()
 

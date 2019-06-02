@@ -20,23 +20,25 @@ class ExecutionHandler(object):
 
 class SimExecutionHandler(ExecutionHandler):
 
-    def __init__(self, queue, datahandler):
+    def __init__(self, queue, datahandler, spread=0.001, fee=0.0005):
         '''
         Handle the order event and generate fill/notfill event
         :param queue: Queue
         :param datahandler: DailyDataHandler
+        :param spread: float, percentage of the price
+        :param fee: float, percentage of the price
         '''
         self.events_queue = queue
         self.datahandler = datahandler
+        self.spread = spread
+        self.fee = fee
         self.close = self.datahandler.get_data("close_p")
         self.symbol, self.date, self.valid = self.datahandler.get_available()
 
     def execute_order(self, order_event):
         '''
-
-        For backtesting, assume the order is executed at close price
-        Assume the fee is 0.1%
         TODO: Tailor the executed price and fee
+        TODO: Tailor the oder_type
         :param order_event: OrderEvent
         '''
         didx = order_event.didx
@@ -51,8 +53,11 @@ class SimExecutionHandler(ExecutionHandler):
             notfill_event = NotFillEvent(didx)
             self.events_queue.put(notfill_event)
         else:
-            executed_price = current_close
-            fee = executed_price * quantity * 0.001
+            if side == "Buy":
+                executed_price = current_close * (1+self.spread)
+            else:
+                executed_price = current_close * (1-self.spread)
+            fee = executed_price * quantity * self.fee
             fill_event = FillEvent(didx, symbol, quantity,
                                    executed_price, side, fee)
             self.events_queue.put(fill_event)

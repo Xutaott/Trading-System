@@ -24,6 +24,8 @@ end_date = datetime.datetime.now() - datetime.timedelta(days=1)
 end_date = end_date.strftime('%Y%m%d')
 
 # Update database
+
+# Update the StockBasic, which stores all lively listed stocks
 engine.execute('DELETE FROM \"StockBasic\"')
 load_stock_basic(session)
 load_stock_bar(session, START_DATE, END_DATE)

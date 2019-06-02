@@ -1,14 +1,16 @@
+# coding=utf-8
+
 import unittest
 import queue
-import pandas as pd
 from sqlalchemy import create_engine
 from wts.datahandler import DailyDataHandler
 from wts.executionhandler import SimExecutionHandler
 from wts.event import OrderEvent, NotFillEvent, FillEvent
 
-engine = create_engine("sqlite:///../database/sample_stock.db")
+path_stock_inter = "postgresql://chenxutao:@localhost/chinesestock_pg_inter"
+engine_stock = create_engine(path_stock_inter)
 events_queue = queue.Queue()
-datahandler = DailyDataHandler(engine, "20100627", "20100703")
+datahandler = DailyDataHandler(engine_stock, "20100627", "20100703")
 
 
 class TestExecutionHandler(unittest.TestCase):
@@ -23,7 +25,8 @@ class TestExecutionHandler(unittest.TestCase):
 
     def setUp(self):
         self.assertTrue(True)
-        self.execution_handler = SimExecutionHandler(events_queue, datahandler)
+        self.execution_handler = SimExecutionHandler(events_queue, datahandler,
+                                                     spread=0.001, fee=0.0005)
 
     def tearDown(self):
         self.assertTrue(True)
@@ -54,8 +57,8 @@ class TestExecutionHandler(unittest.TestCase):
         order_event = OrderEvent(didx, symbol, quantity, side, order_type)
         self.execution_handler.execute_order(order_event)
 
-        close_p = 17.51
-        fee = close_p * quantity * 0.001
+        close_p = 17.51 * (1 - 0.001)
+        fee = close_p * quantity * 0.0005
         fill_event = FillEvent(didx, symbol, quantity, close_p, side, fee)
         event = events_queue.get()
         self.assertEqual(event.didx, fill_event.didx)

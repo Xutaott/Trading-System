@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import unittest
 import pandas as pd
 
@@ -33,10 +35,11 @@ class TestHolding(unittest.TestCase):
         self.all_holding[current_date] = copy.deepcopy(self.initial_holding)
 
         # test update_holding function
-        delta_amount = 4520
+        delta_cash = -4520
+        delta_stock = 4500
         fee = 4.52
 
-        self.initial_holding.update_holding(delta_amount, fee)
+        self.initial_holding.update_holding(delta_cash, delta_stock, fee)
         df = self.initial_holding.to_dataframe()
         print(df)
         current_date = pd.to_datetime("2010-01-08")

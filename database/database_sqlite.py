@@ -18,6 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 import tushare as ts
 import json
+import time
 
 # Set up constant variable
 # token for tushare API
@@ -168,26 +169,36 @@ class Technical_Index(DatabaseTable):
 
 # Load Stock Basic Data
 def load_stock_basic(session):
+    print("Loading stock basic")
+    t1 = time.time()
     # Only select actively listed to date
     df_basic = tushare_online_data.stock_basic(exchange='', list_status='L')
     data_json = json.loads(df_basic.to_json(orient='table'))
     data = data_json['data']
     for record in data:
-        ts_code = record['ts_code']
-        symbol = record['symbol']
-        name = record['name']
-        area = record['area']
-        industry = record['industry']
-        list_dt = record['list_date']
-        stock_instance = Stock_Basic(ts_code=ts_code, symbol=symbol, name=name,
-                                     area=area, industry=industry,
-                                     list_dt=list_dt)
-        session.add(stock_instance)
+        # Some issues in stock 001872.SZ, drop it
+        if record['ts_code'] == '001872.SZ':
+            continue
+        else:
+            ts_code = record['ts_code']
+            symbol = record['symbol']
+            name = record['name']
+            area = record['area']
+            industry = record['industry']
+            list_dt = record['list_date']
+            stock_instance = Stock_Basic(ts_code=ts_code, symbol=symbol,
+                                         name=name, industry=industry,
+                                         list_dt=list_dt, area=area)
+            session.add(stock_instance)
     session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 # Load stock bar data
 def load_stock_bar(session, start_date, end_date):
+    print("Loading stock bar")
+    t1 = time.time()
     # Load list of actively listed stock
     stock_pool = session.query(Stock_Basic.ts_code).all()
     stock_pool = list(a[0] for a in stock_pool)
@@ -228,10 +239,14 @@ def load_stock_bar(session, start_date, end_date):
                          pre_close=pre_close)
             session.add(aBar)
         session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 # Load stock moneyflow data
 def load_stock_moneyflow(session, start_date, end_date):
+    print("Loading stock moneyflow")
+    t1 = time.time()
     stock_pool = session.query(Stock_Basic.ts_code).all()
     stock_pool = list(a[0] for a in stock_pool)
     stock_count = len(stock_pool)
@@ -296,10 +311,14 @@ def load_stock_moneyflow(session, start_date, end_date):
                                    net_mf_amount=net_mf_amount)
             session.add(aMoneyflow)
         session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 # Load stock technical data
 def load_stock_technical(session, start_date, end_date):
+    print("Loading stock technical")
+    t1 = time.time()
     stock_pool = session.query(Stock_Basic.ts_code).all()
     stock_pool = list(a[0] for a in stock_pool)
     stock_count = len(stock_pool)
@@ -348,10 +367,14 @@ def load_stock_technical(session, start_date, end_date):
                                    float_mv=float_mv)
             session.add(aTechnical)
         session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 # Load index basic data
 def load_index_basic(session):
+    print("Loading index basic")
+    t1 = time.time()
     # SSE:上交所; SZSW:深交所; CSI:中证指数
     market_list = ['SSE', 'SZSE', 'CSI']
     for market in market_list:
@@ -375,10 +398,14 @@ def load_index_basic(session):
                                       list_date=list_date)
             session.add(aIndexBasic)
         session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 # Load index bar data
 def load_index_bar(session, start_date, end_date):
+    print("Loading index bar")
+    t1 = time.time()
     index_pool = INDEX_LIST
     index_count = len(index_pool)
 
@@ -415,10 +442,14 @@ def load_index_bar(session, start_date, end_date):
                               pre_close=pre_close, pct_change=pct_change)
             session.add(aIndexBar)
         session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 # Load index technical data
 def load_index_technical(session, start_date, end_date):
+    print("Loading index technical")
+    t1 = time.time()
     index_pool = INDEX_LIST
     index_count = len(index_pool)
 
@@ -466,6 +497,8 @@ def load_index_technical(session, start_date, end_date):
                                               float_mv=float_mv)
             session.add(aIndexTechnical)
         session.commit()
+    t2 = time.time()
+    print(t2 - t1)
 
 
 if __name__ == "__main__":

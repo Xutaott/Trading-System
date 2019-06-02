@@ -15,7 +15,7 @@ class PortfolioHandler(object):
     _metaclass__ = ABCMeta
 
     @abstractmethod
-    def update_order(self, signal_event, method):
+    def update_order(self, signal_event):
         raise NotImplementedError("Should Implement update_order method")
 
     @abstractmethod
@@ -28,17 +28,22 @@ class SimPortfolioHandler(PortfolioHandler):
     For backtest purpose
     '''
 
-    def __init__(self, queue, freq=20, initial_cap=1000000.0):
+    def __init__(self, queue, freq=20, initial_cap=10000000.0,
+                 leverage=0.8, allo='AD'):
         '''
 
         :param queue: Queue
         :param freq: Int, frequency of rebalancing position
         :param initial_cap: Float, initial capital for backtest
+        :param leverage: float, percentage of capital allocated to stocks
+        :param allo: string, capital allocation method
         '''
         self.events_queue = queue
         self.freq = freq
         self.position = Position()
         self.holding = Holding(cash=initial_cap)
+        self.leverage = leverage
+        self.allo = allo
 
         self.total_order = 0
         self.process_order = 0
@@ -47,7 +52,7 @@ class SimPortfolioHandler(PortfolioHandler):
         self.all_holding = dict()
 
     # Based on signal event, generate many order events and put it in queue
-    def update_order(self, signal_event, method):
+    def update_order(self, signal_event):
         '''
 
         :param signal_event: SignalEvent
@@ -57,7 +62,7 @@ class SimPortfolioHandler(PortfolioHandler):
         signal = signal_event.signal
         next_didx = didx + self.freq
 
-        if method == "AD":  # AD for amount divesified
+        if self.allo == "AD":  # AD for amount divesified
             target_position = self.get_target_position_ad(signal)
         else:
             target_position = self.get_target_position(signal)
@@ -108,7 +113,7 @@ class SimPortfolioHandler(PortfolioHandler):
         '''
         # Calculate capital allocated to each stock
         capital = self.holding.dictionary["total"]
-        stock = capital * 0.8
+        stock = capital * self.leverage
         each_stock = stock / len(signal)
 
         target_position = dict()
@@ -127,6 +132,7 @@ class SimPortfolioHandler(PortfolioHandler):
         return target_position
 
     # Compare target position and current position, generate orders
+    # Update the price of stock whose position does not change
     def order_generator(self, target_position):
         '''
         # TODO: generate price_range based on pre_close to manage spread risk
@@ -137,7 +143,7 @@ class SimPortfolioHandler(PortfolioHandler):
         order_dict = dict()
 
         # For symbols in target position,
-        # We need to adjust its quantity in current position
+        # We need to adjust quantity and update price in current position
         for symbol, target in target_position.items():
             current = self.position.get_position(symbol)
             delta_quantity = target["quantity"] - current["quantity"]
@@ -151,20 +157,25 @@ class SimPortfolioHandler(PortfolioHandler):
                                       "quantity": -delta_quantity,
                                       "side": "Sell",
                                       "price_range": None}
+            elif delta_quantity == 0:
+                initial_amount = current['amount']
+                new_price = target['pre_close']
+                current['current_price'] = new_price
+                current["amount"] = current["quantity"] * current[
+                    "current_price"]
+                delta_stock = current['amount'] - initial_amount
+                self.holding.update_holding(0.0, delta_stock, 0.0)
 
         # target position only include symbols in the signal event
         # So for symbols only in current position, we need to sell them
         current_position = self.position.dictionary
         for symbol in current_position:
             if symbol not in target_position:
-                delta_quantity = current_position[symbol]["quantity"]
-                if delta_quantity == 0:
-                    continue
-                else:
-                    order_dict[symbol] = {"order_type": "Market",
-                                          "quantity": delta_quantity,
-                                          "side": "Sell",
-                                          "price_range": None}
+                quantity = current_position[symbol]["quantity"]
+                order_dict[symbol] = {"order_type": "Market",
+                                      "quantity": quantity,
+                                      "side": "Sell",
+                                      "price_range": None}
         return order_dict
 
     # Based on execution, update position and holding
@@ -174,15 +185,15 @@ class SimPortfolioHandler(PortfolioHandler):
         :param event: FillEvent or NotFillEvent
         '''
         self.process_order += 1
-        # Update position
-        didx = event.didx
-        next_didx = didx + self.freq
+        # Update position and holding
         delta_cash, delta_stock, fee = self.position.update_position(event)
         self.holding.update_holding(delta_cash, delta_stock, fee)
 
         # When all orders in current period are filled, record position and
         # holding, and then generate next loop event
         if self.process_order == self.total_order:
+            didx = event.didx
+            next_didx = didx + self.freq
             self.all_position[didx] = copy.deepcopy(self.position)
             self.all_holding[didx] = copy.deepcopy(self.holding)
 

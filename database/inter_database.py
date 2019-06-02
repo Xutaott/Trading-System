@@ -49,7 +49,7 @@ def drop_all(engine_inter):
 
 
 # Load data for tscode table and valid table
-def load_stock_valid(engine_original, engine_inter, end_date):
+def load_stock_valid(engine_original, engine_inter, end_date, co_list):
     # Create table for ts_code and valid
     tscode_table = Table("ts_code", DatabaseTable.metadata,
                          Column("symbol", String))
@@ -72,8 +72,9 @@ def load_stock_valid(engine_original, engine_inter, end_date):
     group = []
     columns = []
     for ts_code, df1 in df_group:
-        columns.append(ts_code)
-        group.append(df1)
+        if ts_code in co_list:
+            columns.append(ts_code)
+            group.append(df1)
     # Convert to T*M dataframe, use outer join to ensure aligned dimension
     # Mission value (not listed or no trade) is filled by np.nan
     df_all = pd.concat(group, join="outer", axis=1)
@@ -93,13 +94,15 @@ def load_stock_valid(engine_original, engine_inter, end_date):
 
 
 # Load inter bar data
-def load_inter_bar(engine_original, engine_inter, end_date):
+def load_inter_bar(engine_original, engine_inter, end_date, co_list):
     for column in COLUMN_BAR:
+        t1 = time.time()
+        print("Load inter %s data" % column)
         mytable = Table(column, DatabaseTable.metadata,
                         Column("date", String),
                         Column("data", ARRAY(Float)))
-        mytable.create(engine_inter)  # Run for only once
-        print(column)
+        mytable.create(engine_inter)
+
         # Get the matrix from original db
         sql_statement = "SELECT date,ts_code,%s FROM \"Stocks\" WHERE date " \
                         "BETWEEN \'%s\' AND \'%s\' ORDER BY " \
@@ -114,8 +117,9 @@ def load_inter_bar(engine_original, engine_inter, end_date):
         group = []
         columns = []
         for ts_code, df1 in df_group:
-            columns.append(ts_code)
-            group.append(df1)
+            if ts_code in co_list:
+                columns.append(ts_code)
+                group.append(df1)
         df_all = pd.concat(group, join="outer", axis=1)
         df_all.drop("ts_code", axis=1, inplace=True)
         df_all.columns = columns
@@ -126,16 +130,20 @@ def load_inter_bar(engine_original, engine_inter, end_date):
         for i in np.arange(len(date)):
             engine_inter.execute(mytable.insert(), date=date[i],
                                  data=matrix_all[i, :])
+        t2 = time.time()
+        print(t2 - t1)
 
 
 # Load inter money flow data
-def load_inter_moneyflow(engine_original, engine_inter, end_date):
+def load_inter_moneyflow(engine_original, engine_inter, end_date, co_list):
     for column in COLUMN_MONEYFLOW:
+        t1 = time.time()
+        print("Load inter %s data" % column)
         mytable = Table(column, DatabaseTable.metadata,
                         Column("date", String),
                         Column("data", ARRAY(Float)))
-        mytable.create(engine_inter)  # Run for only once
-        print(column)
+        mytable.create(engine_inter)
+
         # Get the matrix from original db
         sql_statement = "SELECT date,ts_code,%s FROM \"Moneyflow\" " \
                         "WHERE date BETWEEN \'%s\' AND \'%s\' ORDER BY " \
@@ -150,8 +158,9 @@ def load_inter_moneyflow(engine_original, engine_inter, end_date):
         group = []
         columns = []
         for ts_code, df1 in df_group:
-            columns.append(ts_code)
-            group.append(df1)
+            if ts_code in co_list:
+                columns.append(ts_code)
+                group.append(df1)
         df_all = pd.concat(group, join="outer", axis=1)
         df_all.drop("ts_code", axis=1, inplace=True)
         df_all.columns = columns
@@ -163,16 +172,20 @@ def load_inter_moneyflow(engine_original, engine_inter, end_date):
         for i in np.arange(len(date)):
             engine_inter.execute(mytable.insert(), date=date[i],
                                  data=matrix_all[i, :])
+        t2 = time.time()
+        print(t2 - t1)
 
 
 # Load inter technical date
-def load_inter_technical(engine_original, engine_inter, end_date):
+def load_inter_technical(engine_original, engine_inter, end_date, co_list):
     for column in COLUMN_TECHNICAL:
+        t1 = time.time()
+        print("Load inter %s data" % column)
         mytable = Table(column, DatabaseTable.metadata,
                         Column("date", String),
                         Column("data", ARRAY(Float)))
-        mytable.create(engine_inter)  # Run for only once
-        print(column)
+        mytable.create(engine_inter)
+
         # Get the matrix from original db
         sql_statement = "SELECT date,ts_code,%s FROM \"Technical\" " \
                         "WHERE date BETWEEN \'%s\' AND \'%s\' ORDER BY " \
@@ -187,8 +200,9 @@ def load_inter_technical(engine_original, engine_inter, end_date):
         group = []
         columns = []
         for ts_code, df1 in df_group:
-            columns.append(ts_code)
-            group.append(df1)
+            if ts_code in co_list:
+                columns.append(ts_code)
+                group.append(df1)
         df_all = pd.concat(group, join="outer", axis=1)
         df_all.drop("ts_code", axis=1, inplace=True)
         df_all.columns = columns
@@ -200,6 +214,8 @@ def load_inter_technical(engine_original, engine_inter, end_date):
         for i in np.arange(len(date)):
             engine_inter.execute(mytable.insert(), date=date[i],
                                  data=matrix_all[i, :])
+        t2 = time.time()
+        print(t2 - t1)
 
 
 # Load inter index data
@@ -223,6 +239,39 @@ def load_inter_index(engine_original, engine_inter, end_date):
     df.to_sql(name="Index", con=engine_inter, if_exists="append", index=False)
 
 
+def find_common(engine_original, end_date):
+    sql_statement = "SELECT DISTINCT ts_code FROM \"Stocks\" " \
+                    "WHERE date BETWEEN \'%s\' AND \'%s\'" % (
+                        START_DATE, end_date)
+    result = engine_original.execute(sql_statement)
+    data = result.fetchall()
+    keys = result.keys()
+    df = pd.DataFrame(data, columns=keys)
+    set_bar = set(df.values.flat)
+
+    sql_statement = "SELECT DISTINCT ts_code FROM \"Moneyflow\" " \
+                    "WHERE date BETWEEN \'%s\' AND \'%s\'" % (
+                        START_DATE, end_date)
+    result = engine_original.execute(sql_statement)
+    data = result.fetchall()
+    keys = result.keys()
+    df = pd.DataFrame(data, columns=keys)
+    set_ml = set(df.values.flat)
+
+    sql_statement = "SELECT DISTINCT ts_code FROM \"Technical\" " \
+                    "WHERE date BETWEEN \'%s\' AND \'%s\'" % (
+                        START_DATE, end_date)
+    result = engine_original.execute(sql_statement)
+    data = result.fetchall()
+    keys = result.keys()
+    df = pd.DataFrame(data, columns=keys)
+    set_tech = set(df.values.flat)
+
+    co_list = list(set_bar.intersection(set_ml).intersection(set_tech))
+
+    return co_list
+
+
 if __name__ == '__main__':
     # Need to create database first if not exist
     engine_original = create_engine(
@@ -230,10 +279,12 @@ if __name__ == '__main__':
     engine_inter = create_engine(
         'postgresql://chenxutao:@localhost/chinesestock_pg_inter')
 
+    co_list = find_common(engine_original, END_DATE)
+
     # Drop all table first to avoid duplicate
     drop_all(engine_inter)
-    load_stock_valid(engine_original, engine_inter, END_DATE)
-    load_inter_bar(engine_original, engine_inter, END_DATE)
-    load_inter_moneyflow(engine_original, engine_inter, END_DATE)
-    load_inter_technical(engine_original, engine_inter, END_DATE)
+    load_stock_valid(engine_original, engine_inter, END_DATE, co_list)
+    load_inter_bar(engine_original, engine_inter, END_DATE, co_list)
+    load_inter_moneyflow(engine_original, engine_inter, END_DATE, co_list)
+    load_inter_technical(engine_original, engine_inter, END_DATE, co_list)
     load_inter_index(engine_original, engine_inter, END_DATE)

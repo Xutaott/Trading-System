@@ -14,9 +14,12 @@ engine_inter = create_engine(
 end_date = datetime.datetime.now() - datetime.timedelta(days=730)
 end_date = end_date.strftime('%Y%m%d')
 
+co_list = find_common(engine_original, END_DATE)
+
+# Drop all table first to avoid duplicate
 drop_all(engine_inter)
-load_stock_valid(engine_original, engine_inter, end_date)
-load_inter_bar(engine_original, engine_inter, end_date)
-load_inter_moneyflow(engine_original, engine_inter, end_date)
-load_inter_technical(engine_original, engine_inter, end_date)
-load_inter_index(engine_original, engine_inter, end_date)
+load_stock_valid(engine_original, engine_inter, END_DATE, co_list)
+load_inter_bar(engine_original, engine_inter, END_DATE, co_list)
+load_inter_moneyflow(engine_original, engine_inter, END_DATE, co_list)
+load_inter_technical(engine_original, engine_inter, END_DATE, co_list)
+load_inter_index(engine_original, engine_inter, END_DATE)

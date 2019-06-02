@@ -3,7 +3,7 @@
 import unittest
 from sqlalchemy import create_engine
 import queue
-import pandas as pd
+import numpy as np
 
 from wts.datahandler import DailyDataHandler
 from wts.event import NextLoopEvent
@@ -11,17 +11,46 @@ from wts.strategy import AlphaBase
 from wts.portfoliohandler import SimPortfolioHandler
 from wts.executionhandler import SimExecutionHandler
 
-start_datetime = "20100101"
-end_datetime = "20190101"
-# Sample database
-# engine_stock = create_engine("sqlite:///../database/sample.db")
-# Population database
-# engine_stock = create_engine("sqlite://///Users/chenxutao/Documents/"
-#                             "TradingSystem/chinesestock1.db")
-
+'''
+Guideline for backtesting
+1. Specify the backtesting time range
+1. Define a new Alpha class, inherited from AlphaBase
+    1.a Override __init__, specify the rolling window, number of long stocks,
+        data you will use
+    1.b Override alpha_generator, specify the calculation process
+2. If needed, change the init capital, leverage, spread, fee,
+   rebalance frequency and allocation method
+'''
 # Population postgresql
-path_stock_inter = "postgresql://chenxutao:@localhost/stock_inter"
+path_stock_inter = "postgresql://chenxutao:@localhost/chinesestock_pg_inter"
 engine_stock = create_engine(path_stock_inter)
+
+start_dt = "20100101"
+end_dt = "20170101"
+
+
+class Alpha1(AlphaBase):
+    def __init__(self, datahandler, events_queue):
+        super(Alpha1, self).__init__(datahandler, events_queue)
+
+        self.lookback = 10
+        self.N = 50
+        self.buy_sm_vol = self.get_data("buy_sm_amount")
+
+    def alpha_generator(self, didx):
+        num_Insts = len(self.symbol)
+        alpha = np.array([np.nan] * num_Insts)
+        v = [True] * num_Insts
+        for i in range(1, self.lookback + 1):
+            v1 = self.valid[didx - i, :]
+            v = np.logical_and(v, v1)
+        startdidx = didx - self.lookback
+
+        # Pay attention to "axis" parameter
+        buy_sm_vol = self.buy_sm_vol[startdidx:didx, v]
+        alpha[v] = np.nanmean(buy_sm_vol, axis=0) / np.nanstd(buy_sm_vol,
+                                                              axis=0)
+        return alpha
 
 
 class TestMain(unittest.TestCase):
@@ -36,37 +65,42 @@ class TestMain(unittest.TestCase):
 
     def setUp(self):
         self.assertTrue(True)
+        self.events_queue = queue.Queue()
+        self.datahandler = DailyDataHandler(engine_stock, start_dt, end_dt)
+        self.strategy = Alpha1(self.datahandler, self.events_queue)
+        self.portfoliohandler = SimPortfolioHandler(self.events_queue, freq=20,
+                                                    initial_cap=10000000.0,
+                                                    leverage=0.8,
+                                                    allo='AD')
+        self.executionHandler = SimExecutionHandler(self.events_queue,
+                                                    self.datahandler,
+                                                    spread=0.001,
+                                                    fee=0.0005)
 
     def tearDown(self):
         self.assertTrue(True)
 
     def testCase1(self):
-        events_queue = queue.Queue()
-        datahandler = DailyDataHandler(engine_stock, start_datetime,
-                                       end_datetime)
-        strategy = AlphaBase(datahandler, events_queue)
-        portfoliohandler = SimPortfolioHandler(events_queue, freq=20,
-                                               initial_cap=1000000.0)
-        executionHandler = SimExecutionHandler(events_queue, datahandler)
-        # Arbitrage didx to start
-        nextloop_event = NextLoopEvent(didx=4)
-        events_queue.put(nextloop_event)
 
-        while not events_queue.empty():
-            event = events_queue.get()
+        # Arbitrary didx to start
+        nextloop_event = NextLoopEvent(didx=4)
+        self.events_queue.put(nextloop_event)
+
+        while not self.events_queue.empty():
+            event = self.events_queue.get()
             if event.type == "NextLoopEvent":
-                strategy.update_signal(event)
+                self.strategy.update_signal(event)
 
             elif event.type == "SignalEvent":
-                portfoliohandler.update_order(event, method="AD")
+                self.portfoliohandler.update_order(event)
 
             elif event.type == "OrderEvent":
-                executionHandler.execute_order(event)
+                self.executionHandler.execute_order(event)
 
             elif event.type == "FillEvent" or event.type == "NotFillEvent":
-                portfoliohandler.update_fill(event)
+                self.portfoliohandler.update_fill(event)
 
-        all_holding, all_position = portfoliohandler.to_dataframe()
+        all_holding, all_position = self.portfoliohandler.to_dataframe()
 
         all_holding.to_csv("../backtest_output/all_holding.csv")
         all_position.to_csv("../backtest_output/all_position.csv")
