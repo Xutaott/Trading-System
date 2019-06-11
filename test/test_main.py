@@ -4,6 +4,7 @@ import unittest
 from sqlalchemy import create_engine
 import queue
 import numpy as np
+import pandas as pd
 
 from wts.datahandler import DailyDataHandler
 from wts.event import NextLoopEvent
@@ -83,7 +84,7 @@ class TestMain(unittest.TestCase):
     def testCase1(self):
 
         # Arbitrary didx to start
-        nextloop_event = NextLoopEvent(didx=4)
+        nextloop_event = NextLoopEvent(didx=20)
         self.events_queue.put(nextloop_event)
 
         while not self.events_queue.empty():
@@ -101,6 +102,17 @@ class TestMain(unittest.TestCase):
                 self.portfoliohandler.update_fill(event)
 
         all_holding, all_position = self.portfoliohandler.to_dataframe()
+        date = pd.DataFrame(self.strategy.date, columns=['date'])
+        all_holding = all_holding.merge(date, how='left', left_index=True,
+                                        right_index=True)
+        all_position = all_position.merge(date, how='left', left_index=True,
+                                          right_index=True)
+
+        all_holding.set_index(keys='date', drop=True, inplace=True)
+        all_holding.index = pd.to_datetime(all_holding.index)
+
+        all_position.set_index(keys='date', drop=True, inplace=True)
+        all_position.index = pd.to_datetime(all_position.index)
 
         all_holding.to_csv("../backtest_output/all_holding.csv")
         all_position.to_csv("../backtest_output/all_position.csv")

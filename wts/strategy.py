@@ -98,14 +98,18 @@ class AlphaBase(Strategy):
 
     def signal_generator(self, alpha, didx):
         pre_close = self.close[didx - 1]
+        # Convert inf to nan, inf is from divide by 0 error
+        alpha[alpha == np.inf] = np.nan
         # Return an array of indices that sort the array in descending order
         # np.nan in the last
         argsort = np.argsort(-alpha)
-        # Assume we long the top 50 stocks
         signal = dict()
         for i in range(self.N):
             symbol = self.symbol[argsort[i]]
             pre_close_i = pre_close[argsort[i]]
+            # TODO: FIX BUG of Valid Matrix
+            if np.isnan(pre_close_i):
+                continue
             signal[i + 1] = {"symbol": symbol, "side": "Buy",
                              "pre_close": pre_close_i}
         return signal
