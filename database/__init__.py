@@ -9,6 +9,8 @@
     For in-sample backtesting purpose, end_date is 2 year ago
 4. daily_update:
     Update the original database for every trading date after 18:00
+    Also update the inter database for out sample backtest
 5. monthly_update:
     Update the inter database at the first date of every month
+     for in sample backtest
 '''

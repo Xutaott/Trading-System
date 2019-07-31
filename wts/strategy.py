@@ -1,3 +1,5 @@
+# coding=utf-8
+
 from abc import ABCMeta, abstractmethod
 from wts.event import SignalEvent
 import numpy as np
@@ -30,10 +32,10 @@ class Strategy():
 
     # Get trading signal
     @abstractmethod
-    def signal_generator(self, alpha, didx):
+    def signal_generator(self, alpha_decay, didx):
         '''
         Generate signal based on alpha values
-        :param alpha: np.array
+        :param alpha_decay: np.array
         :param didx: Int
         :return Dict of dict, {Int rank: {"symbol":String,"side": String,
                                         "pre_close": float}}
@@ -46,32 +48,42 @@ class AlphaBase(Strategy):
     Stock Selection
     '''
 
-    def __init__(self, datahandler, events_queue, lookback=10, N=50):
+    def __init__(self, datahandler, events_queue, lookback=10, decay=10, N=50,
+                 ema=False):
         '''
 
         :param datahandler: DataHandler
         :param events_queue: Queue
         :param lookback: int, days of rolling window
-        :param N: number of stocks to long
+        :param decay: int, days of EMA decay to smooth the alpha
+        :param N: int, number of stocks to long
+        :param ema: boolean, whether to exponential smooth the alpha
         '''
         self.datahandler = datahandler
         self.events_queue = events_queue
         self.lookback = lookback
+        self.decay = decay
         self.N = N
         self.symbol, self.date, self.valid = self.datahandler.get_available()
         self.close = self.datahandler.get_data("close_p")
         self.last_didx = self.close.shape[0] - 1
+        self.ema = ema
+        self.ema_alpha = 0.5
 
     def update_signal(self, nextloop_event):
         didx = nextloop_event.didx
         # Handle the starting scenario
-        if didx < self.lookback:
-            didx = self.lookback
+        if didx < self.lookback + self.decay:
+            didx = self.lookback + self.decay
         # Handle the ending scenario
         if didx >= self.last_didx:
             return "Backtest End"
-        alpha = self.alpha_generator(didx)
-        signal = self.signal_generator(alpha, didx)
+
+        # Update the smoothed alpha
+        alpha_decay = self.alpha_smooth(didx, self.ema)
+
+        # Generate signal from smoothed alpha
+        signal = self.signal_generator(alpha_decay, didx)
         signal_event = SignalEvent(didx, signal)
         self.events_queue.put(signal_event)
 
@@ -96,13 +108,28 @@ class AlphaBase(Strategy):
         #                                                       axis=0)
         return alpha
 
-    def signal_generator(self, alpha, didx):
+    # function to smooth the alpha
+    def alpha_smooth(self, didx, ema=True):
+
+        alpha_records = []
+        for i in range(self.decay):
+            alpha = self.alpha_generator(didx - i)
+            alpha_records.append(alpha.reshape(1, -1))
+        alpha_records = np.concatenate(alpha_records, axis=0)
+        if ema:
+            ema_weight = self.ema_weight()
+            alpha_decay = np.nansum(alpha_records * ema_weight, axis=0)
+        else:
+            alpha_decay = np.nanmean(alpha_records, axis=0)
+        return alpha_decay
+
+    def signal_generator(self, alpha_decay, didx):
         pre_close = self.close[didx - 1]
         # Convert inf to nan, inf is from divide by 0 error
-        alpha[alpha == np.inf] = np.nan
+        alpha_decay[alpha_decay == np.inf] = np.nan
         # Return an array of indices that sort the array in descending order
         # np.nan in the last
-        argsort = np.argsort(-alpha)
+        argsort = np.argsort(-alpha_decay)
         signal = dict()
         for i in range(self.N):
             symbol = self.symbol[argsort[i]]
@@ -130,3 +157,12 @@ class AlphaBase(Strategy):
         :return: 1*M array
         '''
         return self.datahandler.get_index(keyword, ts_code)
+
+    # Function to calculate the ema weight of alpha
+    def ema_weight(self):
+        weight = [self.ema_alpha]
+        for i in range(self.decay - 1):
+            weight.append(weight[-1] * (1 - self.ema_alpha))
+        weight = np.array(weight).reshape(-1, 1)
+        weight_matrix = np.hstack([weight] * len(self.symbol))
+        return weight_matrix

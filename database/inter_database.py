@@ -1,3 +1,5 @@
+# coding=utf-8
+
 '''
 Build an inter database to accelerate backtest efficiency
 
@@ -49,7 +51,8 @@ def drop_all(engine_inter):
 
 
 # Load data for tscode table and valid table
-def load_stock_valid(engine_original, engine_inter, end_date, co_list):
+def load_stock_valid_inter(engine_original, engine_inter, start_date, end_date,
+                           co_list):
     # Create table for ts_code and valid
     tscode_table = Table("ts_code", DatabaseTable.metadata,
                          Column("symbol", String))
@@ -61,7 +64,7 @@ def load_stock_valid(engine_original, engine_inter, end_date, co_list):
     # Sort by ts_code and date to ensure order in rows and columns
     sql_statement = "SELECT date,ts_code,close_p FROM \"Stocks\" WHERE date " \
                     "BETWEEN \'%s\' AND \'%s\' ORDER BY " \
-                    "ts_code, date" % (START_DATE, end_date)
+                    "ts_code, date" % (start_date, end_date)
     result = engine_original.execute(sql_statement)
     data = result.fetchall()
     keys = result.keys()
@@ -94,7 +97,8 @@ def load_stock_valid(engine_original, engine_inter, end_date, co_list):
 
 
 # Load inter bar data
-def load_inter_bar(engine_original, engine_inter, end_date, co_list):
+def load_inter_bar_inter(engine_original, engine_inter, start_date, end_date,
+                         co_list):
     for column in COLUMN_BAR:
         t1 = time.time()
         print("Load inter %s data" % column)
@@ -106,7 +110,7 @@ def load_inter_bar(engine_original, engine_inter, end_date, co_list):
         # Get the matrix from original db
         sql_statement = "SELECT date,ts_code,%s FROM \"Stocks\" WHERE date " \
                         "BETWEEN \'%s\' AND \'%s\' ORDER BY " \
-                        "ts_code, date" % (column, START_DATE, end_date)
+                        "ts_code, date" % (column, start_date, end_date)
         result = engine_original.execute(sql_statement)
         data = result.fetchall()
         keys = result.keys()
@@ -135,7 +139,8 @@ def load_inter_bar(engine_original, engine_inter, end_date, co_list):
 
 
 # Load inter money flow data
-def load_inter_moneyflow(engine_original, engine_inter, end_date, co_list):
+def load_inter_moneyflow_inter(engine_original, engine_inter, start_date,
+                               end_date, co_list):
     for column in COLUMN_MONEYFLOW:
         t1 = time.time()
         print("Load inter %s data" % column)
@@ -147,7 +152,7 @@ def load_inter_moneyflow(engine_original, engine_inter, end_date, co_list):
         # Get the matrix from original db
         sql_statement = "SELECT date,ts_code,%s FROM \"Moneyflow\" " \
                         "WHERE date BETWEEN \'%s\' AND \'%s\' ORDER BY " \
-                        "ts_code, date" % (column, START_DATE, end_date)
+                        "ts_code, date" % (column, start_date, end_date)
         result = engine_original.execute(sql_statement)
         data = result.fetchall()
         keys = result.keys()
@@ -177,7 +182,8 @@ def load_inter_moneyflow(engine_original, engine_inter, end_date, co_list):
 
 
 # Load inter technical date
-def load_inter_technical(engine_original, engine_inter, end_date, co_list):
+def load_inter_technical_inter(engine_original, engine_inter, start_date,
+                               end_date, co_list):
     for column in COLUMN_TECHNICAL:
         t1 = time.time()
         print("Load inter %s data" % column)
@@ -189,7 +195,7 @@ def load_inter_technical(engine_original, engine_inter, end_date, co_list):
         # Get the matrix from original db
         sql_statement = "SELECT date,ts_code,%s FROM \"Technical\" " \
                         "WHERE date BETWEEN \'%s\' AND \'%s\' ORDER BY " \
-                        "ts_code, date" % (column, START_DATE, end_date)
+                        "ts_code, date" % (column, start_date, end_date)
         result = engine_original.execute(sql_statement)
         data = result.fetchall()
         keys = result.keys()
@@ -219,16 +225,17 @@ def load_inter_technical(engine_original, engine_inter, end_date, co_list):
 
 
 # Load inter index data
-def load_inter_index(engine_original, engine_inter, end_date):
+def load_inter_index_inter(engine_original, engine_inter, start_date,
+                           end_date):
     sql_statement = "SELECT * FROM \"Indexs\" WHERE date " \
-                    "BETWEEN \'%s\' AND \'%s\' " % (START_DATE, end_date)
+                    "BETWEEN \'%s\' AND \'%s\' " % (start_date, end_date)
     result = engine_original.execute(sql_statement)
     data = result.fetchall()
     keys = result.keys()
     df1 = pd.DataFrame(data, columns=keys)
 
     sql_statement = "SELECT * FROM \"TechnicalIndex\" WHERE date " \
-                    "BETWEEN \'%s\' AND \'%s\' " % (START_DATE, end_date)
+                    "BETWEEN \'%s\' AND \'%s\' " % (start_date, end_date)
     result = engine_original.execute(sql_statement)
     data = result.fetchall()
     keys = result.keys()
@@ -239,10 +246,10 @@ def load_inter_index(engine_original, engine_inter, end_date):
     df.to_sql(name="Index", con=engine_inter, if_exists="append", index=False)
 
 
-def find_common(engine_original, end_date):
+def find_common(engine_original, start_date, end_date):
     sql_statement = "SELECT DISTINCT ts_code FROM \"Stocks\" " \
                     "WHERE date BETWEEN \'%s\' AND \'%s\'" % (
-                        START_DATE, end_date)
+                        start_date, end_date)
     result = engine_original.execute(sql_statement)
     data = result.fetchall()
     keys = result.keys()
@@ -251,7 +258,7 @@ def find_common(engine_original, end_date):
 
     sql_statement = "SELECT DISTINCT ts_code FROM \"Moneyflow\" " \
                     "WHERE date BETWEEN \'%s\' AND \'%s\'" % (
-                        START_DATE, end_date)
+                        start_date, end_date)
     result = engine_original.execute(sql_statement)
     data = result.fetchall()
     keys = result.keys()
@@ -260,7 +267,7 @@ def find_common(engine_original, end_date):
 
     sql_statement = "SELECT DISTINCT ts_code FROM \"Technical\" " \
                     "WHERE date BETWEEN \'%s\' AND \'%s\'" % (
-                        START_DATE, end_date)
+                        start_date, end_date)
     result = engine_original.execute(sql_statement)
     data = result.fetchall()
     keys = result.keys()
@@ -279,12 +286,16 @@ if __name__ == '__main__':
     engine_inter = create_engine(
         'postgresql://chenxutao:@localhost/chinesestock_pg_inter')
 
-    co_list = find_common(engine_original, END_DATE)
+    co_list = find_common(engine_original, START_DATE, END_DATE)
 
     # Drop all table first to avoid duplicate
     drop_all(engine_inter)
-    load_stock_valid(engine_original, engine_inter, END_DATE, co_list)
-    load_inter_bar(engine_original, engine_inter, END_DATE, co_list)
-    load_inter_moneyflow(engine_original, engine_inter, END_DATE, co_list)
-    load_inter_technical(engine_original, engine_inter, END_DATE, co_list)
-    load_inter_index(engine_original, engine_inter, END_DATE)
+    load_stock_valid_inter(engine_original, engine_inter, START_DATE, END_DATE,
+                           co_list)
+    load_inter_bar_inter(engine_original, engine_inter, START_DATE, END_DATE,
+                         co_list)
+    load_inter_moneyflow_inter(engine_original, engine_inter, START_DATE,
+                               END_DATE, co_list)
+    load_inter_technical_inter(engine_original, engine_inter, START_DATE,
+                               END_DATE, co_list)
+    load_inter_index_inter(engine_original, engine_inter, START_DATE, END_DATE)

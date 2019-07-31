@@ -1,5 +1,7 @@
+# coding=utf-8
+
 '''
-Local Database
+Local Sqlite Database
 1. Download data from Tushare API:
   Stock:
     a. stock basic

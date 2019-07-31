@@ -1,3 +1,5 @@
+# coding=utf-8
+
 from abc import ABCMeta, abstractmethod
 from wts.holding import Holding
 from wts.position import Position
@@ -47,9 +49,11 @@ class SimPortfolioHandler(PortfolioHandler):
 
         self.total_order = 0
         self.process_order = 0
-
+        # Record historical holding and postion for performance metrics
         self.all_position = dict()
         self.all_holding = dict()
+        # Record historical orders for portfolio construction analysis
+        self.all_order = dict()
 
     # Based on signal event, generate many order events and put it in queue
     def update_order(self, signal_event):
@@ -69,6 +73,8 @@ class SimPortfolioHandler(PortfolioHandler):
 
         # Generate orders
         orders_dict = self.order_generator(target_position)
+        # Record orders
+        self.all_order[didx] = orders_dict
         self.total_order = len(orders_dict)
         # If no order, then position and holding do not change
         if self.total_order == 0:
@@ -225,7 +231,16 @@ class SimPortfolioHandler(PortfolioHandler):
         all_position = pd.concat(all_position)
         all_position.set_index('didx', inplace=True)
 
-        return all_holding, all_position
+        all_order = []
+        for didx, orders in self.all_order.items():
+            df = pd.DataFrame.from_dict(orders, orient='index')
+            df.reset_index(inplace=True)
+            df['didx'] = didx
+            all_order.append(df)
+        all_order = pd.concat(all_order)
+        all_order.set_index('didx', inplace=True)
+
+        return all_holding, all_position, all_order
 
 
 # TODO: Implement live trading handler
